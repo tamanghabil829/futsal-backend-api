@@ -2,10 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import cron from 'node-cron';
+import { releaseExpiredLocks, cancelExpiredBookings, generateMissingSlots } from './utils/cronJobs.js';
 import { connectDB } from './database.js';
-import releaseLocksHandler from './api/crons/release-locks.js';
-import cancelBookingsHandler from './api/crons/cancel-bookings.js';
-import generateSlotsHandler from './api/crons/generate-slots.js';
 
 // Load environment variables
 dotenv.config();
@@ -80,11 +79,6 @@ app.use('/api/ads', adRoutes);
 app.use('/api/admin/analytics', analyticsRoutes);    
 app.use('/api/tournaments', tournamentRoutes); 
 
-// Cron job endpoints
-app.get('/api/crons/release-locks', releaseLocksHandler);
-app.get('/api/crons/cancel-bookings', cancelBookingsHandler);
-app.get('/api/crons/generate-slots', generateSlotsHandler);
-
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -109,6 +103,13 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
+// Cron jobs (only in production/non‑test)
+if (process.env.NODE_ENV !== 'test') {
+  cron.schedule('* * * * *', releaseExpiredLocks);
+  cron.schedule('0 * * * *', cancelExpiredBookings);
+  cron.schedule('0 0 * * *', generateMissingSlots);
+  console.log('Cron jobs scheduled');
+}
 
 // Start server
 app.listen(PORT, () => {
@@ -122,5 +123,3 @@ process.on('SIGINT', async () => {
   console.log('Disconnected from database');
   process.exit(0);
 });
-
-export default app;
