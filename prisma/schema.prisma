@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int           @id @default(autoincrement())
+  email           String        @unique
+  username        String?
+  password        String
+  fullName        String
+  phoneNumber     String?
+  businessName    String?
+  businessType    String?
+  panVatNumber    String?
+  address         String?
+  city            String?
+  province        String?
+  role            Role          @default(PLAYER)
+  isApproved      Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  isActive        Boolean       @default(true)
+  isEmailVerified Boolean       @default(false)
+  otp             String?
+  otpExpiry       DateTime?
+  socialId        String?       @unique
+  socialProvider  String?
+  profileImage    String?
+
+  // Relations
+  ownerBlocks     Block[]       @relation("OwnerBlocks")
+  playerBlocks    Block[]       @relation("PlayerBlocks")
+  bookings        Booking[]
+  favorites       Favorite[]
+  ownedFutsals    Futsal[]      @relation("OwnerFutsals")
+  reviews         Review[]
+  teams           TeamMember[]
+  activities      ActivityLog[]
+  notifications   Notification[]
+
+  // Indexes for User queries
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([isApproved])
+  @@index([createdAt])
+  @@index([role, isApproved])
+}
+
+model Futsal {
+  id             Int          @id @default(autoincrement())
+  name           String
+  description    String?
+  address        String
+  latitude       Float?
+  longitude      Float?
+  images         String[]
+  ownerId        Int
+  isApproved     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  operatingHours Json?
+  status         FutsalStatus @default(PENDING)
+
+  // Relations
+  blocks         Block[]
+  courts         Court[]
+  favorites      Favorite[]
+  owner          User         @relation("OwnerFutsals", fields: [ownerId], references: [id])
+  reviews        Review[]
+  tournaments    Tournament[]
+
+  // Indexes for Futsal queries
+  @@index([ownerId])
+  @@index([status])
+  @@index([isApproved])
+  @@index([createdAt])
+  @@index([status, isApproved])
+  @@index([ownerId, status])
+}
+
+model Court {
+  id                 Int        @id @default(autoincrement())
+  futsalId           Int
+  courtNumber        String
+  courtType          String
+  basePrice          Float
+  peakPrice          Float?
+  amenities          String[]
+  isActive           Boolean    @default(true)
+  isUnderMaintenance Boolean    @default(false)
+  maintenanceUntil   DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Relations
+  futsal             Futsal     @relation(fields: [futsalId], references: [id])
+  slots              TimeSlot[]
+
+  // Indexes for Court queries
+  @@index([futsalId])
+  @@index([isActive])
+  @@index([futsalId, isActive])
+}
+
+model TimeSlot {
+  id          Int        @id @default(autoincrement())
+  courtId     Int
+  date        DateTime
+  startTime   String
+  endTime     String
+  price       Float
+  status      SlotStatus @default(AVAILABLE)
+  lockedUntil DateTime?
+
+  // Relations
+  bookings    Booking[]
+  court       Court      @relation(fields: [courtId], references: [id])
+
+  // Indexes for TimeSlot queries (CRITICAL for booking performance)
+  @@index([courtId])
+  @@index([date])
+  @@index([status])
+  @@index([courtId, date])
+  @@index([date, status])
+  @@index([status, lockedUntil])  // For cron job
+}
+
+model Booking {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  slotId        Int
+  totalPrice    Float
+  status        BookingStatus @default(PENDING)
+  bookingDate   DateTime      @default(now())
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  duration      Int           @default(1)
+  groupId       String?
+  paymentMethod String        @default("COD")
+
+  // Relations
+  slot          TimeSlot      @relation(fields: [slotId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  payment       Payment?
+  review        Review?
+
+  // Indexes for Booking queries (CRITICAL for admin panel performance)
+  @@index([slotId])
+  @@index([userId])
+  @@index([status])
+  @@index([groupId])
+  @@index([bookingDate])
+  @@index([userId, status])
+  @@index([status, bookingDate])
+  @@index([bookingDate, status])
+  @@index([paymentMethod])
+  @@index([status, paymentMethod])
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  bookingId     Int      @unique
+  amount        Float
+  method        String
+  status        String
+  transactionId String?
+  createdAt     DateTime @default(now())
+
+  // Relations
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+
+  // Indexes for Payment queries
+  @@index([bookingId])
+  @@index([status])
+  @@index([method])
+  @@index([createdAt])
+  @@index([status, method])
+}
+
+model Tournament {
+  id          Int            @id @default(autoincrement())
+  futsalId    Int
+  name        String
+  type        TournamentType
+  startDate   DateTime
+  endDate     DateTime?
+  maxTeams    Int
+  status      String         @default("DRAFT")
+  createdAt   DateTime       @default(now())
+  description String?
+  entryFee    Float?
+  isPublished Boolean        @default(false)
+  prizePool   Float?
+  prizes      String[]
+  rules       String?
+
+  // Relations
+  matches     Match[]
+  teams       Team[]
+  futsal      Futsal         @relation(fields: [futsalId], references: [id])
+
+  // Indexes for Tournament queries
+  @@index([futsalId])
+  @@index([status])
+  @@index([startDate])
+  @@index([isPublished])
+  @@index([futsalId, status])
+}
+
+model Team {
+  id           Int          @id @default(autoincrement())
+  name         String
+  tournamentId Int
+  logo         String?
+  status       String       @default("PENDING")
+  createdAt    DateTime     @default(now())  // ← ADD THIS LINE
+
+  // Relations
+  awayMatches  Match[]      @relation("AwayTeam")
+  homeMatches  Match[]      @relation("HomeTeam")
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id])
+  players      TeamMember[]
+
+  @@index([tournamentId])
+  @@index([name])
+  @@index([status])
+}
+
+model TeamMember {
+  id          Int     @id @default(autoincrement())
+  teamId      Int
+  userId      Int?
+  role        String  @default("PLAYER")
+  jerseyColor String?
+  playerName  String?
+  playerPhone String?
+
+  // Relations
+  team        Team    @relation(fields: [teamId], references: [id])
+  user        User?   @relation(fields: [userId], references: [id])
+
+  // Indexes
+  @@index([teamId])
+  @@index([userId])
+  @@index([teamId, userId])
+}
+
+model Match {
+  id           Int         @id @default(autoincrement())
+  tournamentId Int
+  homeTeamId   Int
+  awayTeamId   Int
+  matchDate    DateTime
+  homeScore    Int?
+  awayScore    Int?
+  homePenalty  Int?        // ← ADD THIS
+  awayPenalty  Int?        // ← ADD THIS
+  status       MatchStatus @default(SCHEDULED)
+  round        String
+
+  // Relations
+  awayTeam     Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  homeTeam     Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id])
+
+  // Indexes
+  @@index([tournamentId])
+  @@index([matchDate])
+  @@index([status])
+  @@index([tournamentId, status])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  futsalId  Int
+  rating    Float
+  comment   String?
+  createdAt DateTime @default(now())
+  bookingId Int      @unique
+  reply     String?
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  futsal    Futsal   @relation(fields: [futsalId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  // Indexes
+  @@index([futsalId])
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@index([futsalId, rating])
+}
+
+model Block {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  playerId  Int
+  futsalId  Int
+  reason    String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  futsal    Futsal   @relation(fields: [futsalId], references: [id])
+  owner     User     @relation("OwnerBlocks", fields: [ownerId], references: [id])
+  player    User     @relation("PlayerBlocks", fields: [playerId], references: [id])
+
+  // Indexes
+  @@unique([ownerId, playerId, futsalId])
+  @@index([playerId])
+  @@index([ownerId])
+  @@index([futsalId])
+  @@index([createdAt])
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  futsalId  Int
+  createdAt DateTime @default(now())
+
+  // Relations
+  futsal    Futsal   @relation(fields: [futsalId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  // Indexes
+  @@unique([userId, futsalId])
+  @@index([userId])
+  @@index([futsalId])
+}
+
+model SystemSettings {
+  id                       Int      @id @default(autoincrement())
+  autoApproveOwners        Boolean  @default(false)
+  autoApproveFutsals       Boolean  @default(false)
+  maintenanceMode          Boolean  @default(false)
+  bookingCancellationHours Int      @default(2)
+  slotLockMinutes          Int      @default(5)
+  slotGenerationDays       Int      @default(30)
+  updatedAt                DateTime @updatedAt
+}
+
+model Ad {
+  id         Int      @id @default(autoincrement())
+  title      String
+  subtitle   String
+  buttonText String
+  buttonLink String
+  imageUrl   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Indexes
+  @@index([isActive])
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  type        String
+  description String
+  userId      Int?
+  category    String
+  status      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+
+  // Indexes for ActivityLog queries
+  @@index([userId])
+  @@index([createdAt])
+  @@index([type])
+  @@index([category])
+  @@index([createdAt, type])
+  @@index([userId, createdAt])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  type      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// Enums
+enum Role {
+  PLAYER
+  OWNER
+  ADMIN
+}
+
+enum SlotStatus {
+  AVAILABLE
+  LOCKED
+  BOOKED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum TournamentType {
+  LEAGUE
+  KNOCKOUT
+  ROUND_ROBIN
+}
+
+enum MatchStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum FutsalStatus {
+  PENDING
+  ACTIVE
+  DEACTIVATED
+}

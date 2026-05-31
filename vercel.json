@@ -1,0 +1,29 @@
+{
+  "buildCommand": "cd backend && npm run postinstall",
+  "outputDirectory": "backend",
+  "functions": {
+    "backend/src/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/backend/src/index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/crons/release-locks",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/crons/cancel-bookings",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/crons/generate-slots",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
