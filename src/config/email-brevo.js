@@ -2,11 +2,19 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Debug: Check if API key is loaded (remove after testing)
+console.log('🔍 [Brevo] Checking configuration...');
+console.log('🔍 [Brevo] BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
+console.log('🔍 [Brevo] BREVO_API_KEY prefix:', process.env.BREVO_API_KEY ? process.env.BREVO_API_KEY.substring(0, 12) + '...' : 'MISSING');
+console.log('🔍 [Brevo] NODE_ENV:', process.env.NODE_ENV || 'not set');
+
 /**
- * Send OTP email using Brevo API (REST API - NOT SDK)
+ * Send OTP email using Brevo API (REST API)
  * Works for ANY email address - 300 emails/day free
  */
 export const sendOtpEmail = async (email, otp, type = 'verify') => {
+  console.log(`📧 [Brevo] Preparing to send ${type} OTP to: ${email}`);
+  
   const isReset = type === 'reset';
 
   const subject = isReset
@@ -27,63 +35,89 @@ export const sendOtpEmail = async (email, otp, type = 'verify') => {
     <head>
       <meta charset="utf-8">
       <title>${subject}</title>
+      <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e0e0e0; border-radius: 12px; }
+        .header { color: #2e7d32; text-align: center; }
+        .otp-code { font-size: 40px; font-weight: bold; letter-spacing: 12px; color: #2e7d32; text-align: center; margin: 32px 0; }
+        .footer { color: #888; font-size: 13px; text-align: center; margin-top: 24px; }
+      </style>
     </head>
     <body>
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e0e0e0; border-radius: 12px;">
-        <h2 style="color: #2e7d32; text-align: center;">⚽ ArenaX Futsal Booking</h2>
+      <div class="container">
+        <h2 class="header">⚽ ArenaX Futsal Booking</h2>
         <h3 style="text-align: center;">${heading}</h3>
         <p style="color: #555;">${message}</p>
-        <div style="text-align: center; margin: 32px 0;">
-          <span style="font-size: 40px; font-weight: bold; letter-spacing: 12px; color: #2e7d32;">
-            ${otp}
-          </span>
+        <div class="otp-code">
+          ${otp}
         </div>
-        <p style="color: #888; font-size: 13px;">This OTP expires in <strong>10 minutes</strong>.</p>
-        <p style="color: #888; font-size: 13px;">If you did not request this, please ignore this email.</p>
+        <p class="footer">This OTP expires in <strong>10 minutes</strong>.</p>
+        <p class="footer">If you did not request this, please ignore this email.</p>
         <hr style="margin: 24px 0; border-color: #e0e0e0;" />
-        <p style="color: #aaa; font-size: 11px; text-align: center;">ArenaX - Smart Futsal Booking System</p>
+        <p class="footer">ArenaX - Smart Futsal Booking System</p>
       </div>
     </body>
     </html>
   `;
 
-  // Use fetch API to call Brevo REST endpoint
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'api-key': process.env.BREVO_API_KEY
-    },
-    body: JSON.stringify({
-      sender: {
-        name: 'ArenaX Futsal',
-        email: 'noreply@brevo.com'
-      },
-      to: [{ email: email }],
-      subject: subject,
-      htmlContent: htmlContent,
-      replyTo: {
-        email: 'support@arenax.com',
-        name: 'ArenaX Support'
-      }
-    })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('Brevo API error:', data);
-    throw new Error(`Failed to send email: ${data.message || 'Unknown error'}`);
+  // Check if API key exists before making request
+  if (!process.env.BREVO_API_KEY) {
+    console.error('❌ [Brevo] CRITICAL: BREVO_API_KEY is missing from environment variables!');
+    throw new Error('Email service configuration error. Please contact support.');
   }
 
-  console.log(`✅ OTP email sent to ${email} via Brevo. Message ID: ${data.messageId}`);
-  return data;
+  console.log(`📤 [Brevo] Sending request to Brevo API...`);
+
+  try {
+    // Use fetch API to call Brevo REST endpoint
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'ArenaX Futsal',
+          email: 'noreply@brevo.com'
+        },
+        to: [{ email: email }],
+        subject: subject,
+        htmlContent: htmlContent,
+        replyTo: {
+          email: 'support@arenax.com',
+          name: 'ArenaX Support'
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('❌ [Brevo] API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: data
+      });
+      throw new Error(`Failed to send email: ${data.message || 'Unknown error'}`);
+    }
+
+    console.log(`✅ [Brevo] OTP email sent successfully to ${email}`);
+    console.log(`✅ [Brevo] Message ID: ${data.messageId}`);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ [Brevo] Exception caught:', error.message);
+    throw new Error('Failed to send verification email. Please try again.');
+  }
 };
 
 /**
  * Generate 6-digit OTP
  */
 export const generateOtp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log(`🔐 [Brevo] Generated OTP: ${otp}`);
+  return otp;
 };
