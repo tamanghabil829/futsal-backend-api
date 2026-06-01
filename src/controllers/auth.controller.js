@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index.js';
-import { sendOtpEmail, generateOtp } from '../config/email.js';
+// import { sendOtpEmail, generateOtp } from '../config/email.js';
+import { sendOtpEmail, generateOtp } from '../config/email-resend.js';
 import { logActivity } from '../utils/activityLogger.js';
 
 /**
