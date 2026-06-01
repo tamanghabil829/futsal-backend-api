@@ -1,5 +1,5 @@
 // config/email-brevo.js
-import brevo from '@getbrevo/brevo';
+import * as brevo from '@getbrevo/brevo';
 import dotenv from 'dotenv';
 dotenv.config();
 
