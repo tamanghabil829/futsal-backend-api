@@ -1,14 +1,9 @@
-// config/email-brevo.js
-import * as brevo from '@getbrevo/brevo';
+// src/config/email-brevo.js
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Initialize Brevo API
-let apiInstance = new brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-
 /**
- * Send OTP email using Brevo (FREE - No domain needed)
+ * Send OTP email using Brevo API (REST API - NOT SDK)
  * Works for ANY email address - 300 emails/day free
  */
 export const sendOtpEmail = async (email, otp, type = 'verify') => {
@@ -52,25 +47,38 @@ export const sendOtpEmail = async (email, otp, type = 'verify') => {
     </html>
   `;
 
-  // Prepare the email
-  let sendSmtpEmail = new brevo.SendSmtpEmail();
-  sendSmtpEmail.subject = subject;
-  sendSmtpEmail.htmlContent = htmlContent;
-  sendSmtpEmail.sender = { 
-    name: "ArenaX Futsal", 
-    email: "noreply@brevo.com"
-  };
-  sendSmtpEmail.to = [{ email: email }];
-  sendSmtpEmail.replyTo = { email: "support@arenax.com", name: "ArenaX Support" };
+  // Use fetch API to call Brevo REST endpoint
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'api-key': process.env.BREVO_API_KEY
+    },
+    body: JSON.stringify({
+      sender: {
+        name: 'ArenaX Futsal',
+        email: 'noreply@brevo.com'
+      },
+      to: [{ email: email }],
+      subject: subject,
+      htmlContent: htmlContent,
+      replyTo: {
+        email: 'support@arenax.com',
+        name: 'ArenaX Support'
+      }
+    })
+  });
 
-  try {
-    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log(`✅ OTP email sent to ${email} via Brevo. Message ID: ${data.messageId}`);
-    return data;
-  } catch (error) {
-    console.error('❌ Brevo email error:', error);
-    throw new Error('Failed to send verification email. Please try again.');
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error('Brevo API error:', data);
+    throw new Error(`Failed to send email: ${data.message || 'Unknown error'}`);
   }
+
+  console.log(`✅ OTP email sent to ${email} via Brevo. Message ID: ${data.messageId}`);
+  return data;
 };
 
 /**
