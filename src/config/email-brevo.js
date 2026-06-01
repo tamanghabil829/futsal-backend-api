@@ -58,7 +58,7 @@ export const sendOtpEmail = async (email, otp, type = 'verify') => {
   sendSmtpEmail.htmlContent = htmlContent;
   sendSmtpEmail.sender = { 
     name: "ArenaX Futsal", 
-    email: "noreply@brevo.com"  // Brevo's free sending domain
+    email: "noreply@brevo.com"
   };
   sendSmtpEmail.to = [{ email: email }];
   sendSmtpEmail.replyTo = { email: "support@arenax.com", name: "ArenaX Support" };
