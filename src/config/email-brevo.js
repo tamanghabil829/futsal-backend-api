@@ -1,33 +1,36 @@
 // src/config/email-brevo.js
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
 // Debug: Check if API key is loaded (remove after testing)
-console.log('🔍 [Brevo] Checking configuration...');
-console.log('🔍 [Brevo] BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
-console.log('🔍 [Brevo] BREVO_API_KEY prefix:', process.env.BREVO_API_KEY ? process.env.BREVO_API_KEY.substring(0, 12) + '...' : 'MISSING');
-console.log('🔍 [Brevo] NODE_ENV:', process.env.NODE_ENV || 'not set');
+console.log("🔍 [Brevo] Checking configuration...");
+console.log("🔍 [Brevo] BREVO_API_KEY exists:", !!process.env.BREVO_API_KEY);
+console.log(
+  "🔍 [Brevo] BREVO_API_KEY prefix:",
+  process.env.BREVO_API_KEY
+    ? process.env.BREVO_API_KEY.substring(0, 12) + "..."
+    : "MISSING",
+);
+console.log("🔍 [Brevo] NODE_ENV:", process.env.NODE_ENV || "not set");
 
 /**
  * Send OTP email using Brevo API (REST API)
  * Works for ANY email address - 300 emails/day free
  */
-export const sendOtpEmail = async (email, otp, type = 'verify') => {
+export const sendOtpEmail = async (email, otp, type = "verify") => {
   console.log(`📧 [Brevo] Preparing to send ${type} OTP to: ${email}`);
-  
-  const isReset = type === 'reset';
+
+  const isReset = type === "reset";
 
   const subject = isReset
-    ? 'ArenaX — Password Reset OTP'
-    : 'ArenaX — Verify Your Email';
+    ? "ArenaX — Password Reset OTP"
+    : "ArenaX — Verify Your Email";
 
-  const heading = isReset
-    ? 'Reset Your Password'
-    : 'Verify Your Email Address';
+  const heading = isReset ? "Reset Your Password" : "Verify Your Email Address";
 
   const message = isReset
-    ? 'You requested a password reset. Use the OTP below to reset your password.'
-    : 'Thank you for registering with ArenaX. Use the OTP below to verify your email address.';
+    ? "You requested a password reset. Use the OTP below to reset your password."
+    : "Thank you for registering with ArenaX. Use the OTP below to verify your email address.";
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -62,54 +65,59 @@ export const sendOtpEmail = async (email, otp, type = 'verify') => {
 
   // Check if API key exists before making request
   if (!process.env.BREVO_API_KEY) {
-    console.error('❌ [Brevo] CRITICAL: BREVO_API_KEY is missing from environment variables!');
-    throw new Error('Email service configuration error. Please contact support.');
+    console.error(
+      "❌ [Brevo] CRITICAL: BREVO_API_KEY is missing from environment variables!",
+    );
+    throw new Error(
+      "Email service configuration error. Please contact support.",
+    );
   }
 
   console.log(`📤 [Brevo] Sending request to Brevo API...`);
 
   try {
     // Use fetch API to call Brevo REST endpoint
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'api-key': process.env.BREVO_API_KEY
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
       },
       body: JSON.stringify({
         sender: {
-          name: 'ArenaX Futsal',
-          email: 'noreply@brevo.com'
+          name: "ArenaX Futsal",
+          email: "habiltamang17@gmail.com", // Your actual registered Brevo account
         },
         to: [{ email: email }],
         subject: subject,
         htmlContent: htmlContent,
         replyTo: {
-          email: 'support@arenax.com',
-          name: 'ArenaX Support'
-        }
-      })
+          email: "support@arenax.com",
+          name: "ArenaX Support",
+        },
+      }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('❌ [Brevo] API Error Response:', {
+      console.error("❌ [Brevo] API Error Response:", {
         status: response.status,
         statusText: response.statusText,
-        error: data
+        error: data,
       });
-      throw new Error(`Failed to send email: ${data.message || 'Unknown error'}`);
+      throw new Error(
+        `Failed to send email: ${data.message || "Unknown error"}`,
+      );
     }
 
     console.log(`✅ [Brevo] OTP email sent successfully to ${email}`);
     console.log(`✅ [Brevo] Message ID: ${data.messageId}`);
     return data;
-    
   } catch (error) {
-    console.error('❌ [Brevo] Exception caught:', error.message);
-    throw new Error('Failed to send verification email. Please try again.');
+    console.error("❌ [Brevo] Exception caught:", error.message);
+    throw new Error("Failed to send verification email. Please try again.");
   }
 };
 
